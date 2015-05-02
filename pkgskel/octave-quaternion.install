@@ -1,4 +1,4 @@
-_pack=@@NAME@@
+_pack=quaternion
 
 ## arg 1:  the new package version
 post_install() {

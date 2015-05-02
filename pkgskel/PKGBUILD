@@ -6,25 +6,25 @@
 # new octave-forge PKGBUILDs or update existing ones. Patches welcome.
 #
 
-_pack=@@NAME@@
+_pack=quaternion
 pkgname=octave-$_pack
-pkgver=@@VERSION@@
+pkgver=2.4.0
 pkgrel=1
-pkgdesc="@@DESCRIPTION@@"
+pkgdesc="Quaternion package for GNU Octave, includes a quaternion class with overloaded operators"
 arch=(any)
 url="http://octave.sourceforge.net/$_pack/"
-license=(@@LICENSE@@)
+license=('GPL3')
 groups=('octave-forge')
-depends=(@@DEPENDS@@)
-makedepends=(@@MAKEDEPENDS@@)
-optdepends=(@@OPTDEPENDS@@)
+depends=('octave>=3.8.0')
+makedepends=()
+optdepends=()
 backup=()
 options=()
 install=$pkgname.install
 _archive=$_pack-$pkgver.tar.gz
 source=("http://downloads.sourceforge.net/octave/$_archive")
 noextract=("$_archive")
-md5sums=('@@MD5SUMS@@')
+md5sums=('e9ebd75024795acf25d3c2028cb08263')
 
 build() {
   cd "$srcdir"

@@ -165,9 +165,13 @@ then
 fi
 
 # create a new package from the skeleton directory
-mkdir "$pkgname"
-cp -r "$skeldir" "$pkgname"
+if test $(cp -r "$skeldir" "$pkgname")
+  then
+    echo "aborting..."
+    exit 0
+  fi
 cd "$pkgname"
+mv "octave-pkgname.install" "$pkgname.install"
 
 # download the package archive
 _archive=$_pack-$version.tar.gz
@@ -194,7 +198,7 @@ optdepends=$(echo "$dcontent" | get_dep --optional "$requires_pattern")
 license=$(echo "$dcontent" | sed -n 's/^License: //p')
 md5sum=$(md5sum "$_archive" | cut -f1 -d' ')
 
-# get our license 
+# get the license for the package
 archlicense="$(getLicense "$license")"
 
 # output our results to the users
@@ -222,4 +226,5 @@ sed \
 	-e "s#@@MAKEDEPENDS@@#$(sedesc "$makedepends")#g" \
 	-e "s#@@OPTDEPENDS@@#$(sedesc "$optdepends")#g" \
 	-e "s#@@MD5SUMS@@#$(sedesc "$md5sum")#g" \
-	-i PKGBUILD "$pkgname.install"
+	-i PKGBUILD "$pkgname.install" #TODO: $pkgname.install should be replaced with
+                                 # a variable to the cooresponding file path
