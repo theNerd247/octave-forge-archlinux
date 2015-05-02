@@ -1,16 +1,24 @@
 #!/bin/sh
+################################################################################
+# downloads and updates a given octave-<pkg>'s coorespondig AUR package info
+# author: drizzd
+# (comments by thenerd247)
+################################################################################
 
 usage()
 {
 	echo "usage: $(basename $0) pack [version]" >&2
 }
 
-geturl()
+# fetches the given package url 
+# $1 - the directory to store the downloaded files to
+# $2 - the url to fetch package files from
+downloadFiles()
 {
 	if ! wget --quiet -O "$1" "$2"
 	then
 		echo "error: download failed: $2"
-	fi
+  fi
 }
 
 sedesc()
@@ -18,6 +26,11 @@ sedesc()
 	echo "$1" | sed -e 's/\(\&\|\.\|\/\|\*\|\[\|\]\|\\\)/\\&/g'
 }
 
+# returns a cooresponding AUR formatted license string given an octave formatted
+# license. 
+# 
+# if no cooresponding license can be found then the AUR license "custom" is
+# assumed.
 octave_to_arch_license()
 {
 	case "$1" in
@@ -37,14 +50,13 @@ octave_to_arch_license()
 		echo "$1"
 		;;
 	*)
-		return 1
+    echo custom
 		;;
 	esac
-
-	return 0
 }
 
-try_convert()
+# attemps to convert the given octave license to the 
+getLicense()
 {
 	echo "$1" |
 	sed -e 's/(see\( individual\)\? files)//' -e 's/ and /\n/g' |
@@ -52,7 +64,7 @@ try_convert()
 		first=true
 		while read octlic
 		do
-			archlic=$(octave_to_arch_license "$octlic") || return 1
+			archlic=$(octave_to_arch_license "$octlic")
 
 			$first || echo -n " "
 			echo -n "'$archlic'"
@@ -61,48 +73,8 @@ try_convert()
 	}
 }
 
-if test $# -ne 1
-then
-	usage
-	exit 1
-fi
-
-_pack=$1
-pkgname=octave-$_pack
-version=$2
-
-if test -z "$version"
-then
-	version=$(
-		geturl - "http://octave.sourceforge.net/$_pack/index.html" |
-		sed -n 's/.*Package Version:.*<td>\([^<]\+\)<\/td>.*/\1/p' |
-		head -1
-	)
-fi
-if test -z "$version"
-then
-	echo "error: could not determine package version" >&2
-	exit 1
-fi
-
-if test -e "$pkgname"
-then
-	echo "error: directory already exists: $pkgname" >&2
-	exit 1
-fi
-
-mkdir "$pkgname"
-cp PKGBUILD.source "$pkgname/PKGBUILD"
-cp octave-pkgname.install "$pkgname/$pkgname.install"
-
-cd "$pkgname"
-
-_archive=$_pack-$version.tar.gz
-if ! geturl "$_archive" "http://downloads.sourceforge.net/octave/$_archive"
-then
-	exit 1
-fi
-
+# handles getting the dependencies for the current package
+# TODO: document this function a bit more.
 get_dep() {
 	assume_octave=
 	optional=
@@ -112,8 +84,7 @@ get_dep() {
 		--octave)
 			assume_octave=YesPlease
 			;;
-		--optional)
-			optional=YesPlease
+		--optional) optional=YesPlease
 			;;
 		*)
 			break
@@ -151,6 +122,61 @@ get_dep() {
 	}
 }
 
+# check for proper program options
+if test $# -ne 1
+then
+	usage
+	exit 1
+fi
+
+_pack=$1
+pkgname=octave-$_pack
+version=$2
+
+#assuming the script is run within this directory only this should be ok
+#
+# TODO: make this line a bit more robust to allow users to integrate this script
+# into other programs if possible.
+skeldir="$(pwd)/pkgskel"
+
+# get the version of the package. If the version is not given by the user then
+# check on the internet for the most recent package information.
+if test -z "$version"
+then
+	version=$(
+		downloadFiles - "http://octave.sourceforge.net/$_pack/index.html" |
+		sed -n 's/.*Package Version:.*<td>\([^<]\+\)<\/td>.*/\1/p' |
+		head -1
+	)
+fi
+if test -z "$version"
+then
+	echo "error: could not determine package version" >&2
+	exit 1
+fi
+
+# check for the package name. 
+# Don't do anything if the package already exists locally to prevent the user
+# from overwriting possible changes they have made.
+if test -e "$pkgname"
+then
+	echo "error: directory already exists: $pkgname" >&2
+	exit 1
+fi
+
+# create a new package from the skeleton directory
+mkdir "$pkgname"
+cp -r "$skeldir" "$pkgname"
+cd "$pkgname"
+
+# download the package archive
+_archive=$_pack-$version.tar.gz
+if ! downloadFiles "$_archive" "http://downloads.sourceforge.net/octave/$_archive"
+then
+	exit 1
+fi
+
+# begin creating the AUR package information.
 dfile=$(
 	tar tzf "$_archive" |
 	grep "^[^/]*\(/\)\?\<DESCRIPTION$" |
@@ -168,18 +194,18 @@ optdepends=$(echo "$dcontent" | get_dep --optional "$requires_pattern")
 license=$(echo "$dcontent" | sed -n 's/^License: //p')
 md5sum=$(md5sum "$_archive" | cut -f1 -d' ')
 
-if ! archlicense="$(try_convert "$license")"
-then
-	archlicense="'custom'"
-fi
+# get our license 
+archlicense="$(getLicense "$license")"
 
+# output our results to the users
 echo "version: $version"
 echo "depends: $depends"
 test -n "$makedepends" && echo "makedepends: $makedepends"
 test -n "$optdepends"  && echo "optdepends: $optdepends"
 echo "license: $archlicense ($license)"
 
-# Truncate to maximum description length allowed by AUR
+# Truncate the description of the package to maximum description length allowed
+# by AUR
 limit=255
 if test $(echo -n "$description" | wc -c) -gt "$limit"
 then
